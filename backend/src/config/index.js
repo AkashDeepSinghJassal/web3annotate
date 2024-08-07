@@ -15,6 +15,9 @@ const config = {
     },
     token : {
         currencyPrecision : 1000_0000
+    },
+    worker : {
+        submissionCount : 100
     }
 };
 

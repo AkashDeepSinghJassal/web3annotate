@@ -3,6 +3,7 @@ import prismaClient from "../databaseClient/prismaClient.js";
 import { workerMiddleware } from "../middleware.js";
 import express from "express"
 import jwt from "jsonwebtoken"
+import { createSubmissionInput } from "../types.js";
 const router = express.Router()
 
 
@@ -24,22 +25,30 @@ router.get("/balance", workerMiddleware, async (req, res) => {
 
 router.get("/nextTask", workerMiddleware, async (req, res) => {
 
-    const userId = req.userId;
 
-    const task = await getNextTask(Number(userId));
+    try {
+        const userId = req.userId;
 
-    if (!task) {
-        res.status(411).json({   
-            message: "No more tasks left for you to review"
-        })
-    } else {
-        res.json({   
-            task
+        const task = await getNextTask(Number(userId));
+
+        if (!task) {
+            res.status(411).json({
+                message: "No more tasks left for you to review"
+            })
+        } else {
+            res.json({
+                task
+            })
+        }
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({
+            message: err.message
         })
     }
 })
 
-router.post("/signin", async(req, res) => {
+router.post("/signin", async (req, res) => {
     const { publicKey, signature } = req.body;
     // const message = new TextEncoder().encode("Sign into survery/annotate as a worker");
 
@@ -89,6 +98,76 @@ router.post("/signin", async(req, res) => {
         })
     }
 })
+
+
+router.post("/submission", workerMiddleware, async (req, res) => {
+
+    try {
+
+        const userId = req.userId;
+        const body = req.body;
+        const parsedBody = createSubmissionInput.safeParse(body);
+
+        if (parsedBody.success) {
+            // check if submission is done for current assigned task
+            const task = await getNextTask(Number(userId));
+            if (!task || task?.id !== Number(parsedBody.data.taskId)) {
+                return res.status(411).json({
+                    message: "Incorrect task id"
+                })
+            }
+
+            const submissionAmount = task.amount / config.worker.submissionCount
+            // start transaction
+            await prismaClient.$transaction(async tx => {
+                // create submission
+                const submission = await tx.submission.create({
+                    data: {
+                        option_id: Number(parsedBody.data.optionId),
+                        worker_id: userId,
+                        task_id: Number(parsedBody.data.taskId),
+                        amount: Number(submissionAmount)
+                    }
+                })
+                // update worker amount increment by submission amount
+                await tx.worker.update({
+                    where: {
+                        id: userId,
+                    },
+                    data: {
+                        pending_amount: {
+                            increment: Number(submissionAmount)
+                        }
+                    }
+                })
+
+                return submission;
+            })
+            // send new task response
+            const nextTask = await getNextTask(Number(userId));
+            res.json({
+                nextTask,
+                amount: submissionAmount
+            })
+
+
+        } else {
+            console.log(parsedBody.error);
+            res.status(411).json({
+                message: `Incorrect inputs ${parsedBody.error.message}`
+            })
+
+        }
+    } catch (err) {
+        console.error(`Exception in submission ${err.message}`)
+        console.error(err)
+        res.status(500).json({
+            message: err.message
+        })
+    }
+
+})
+
 
 /**
  * Get next task which hadn't been submitted by worker and is not already done
