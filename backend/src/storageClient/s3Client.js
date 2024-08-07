@@ -1,11 +1,12 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import "dotenv/config";
+import config from "../config/index.js";
 
 const s3Client = new S3Client({
     credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY,
-        secretAccessKey: process.env.AWS_SECRET_KEY,
+        accessKeyId: config.aws.accessKey,
+        secretAccessKey: config.aws.secretKey,
     },
-    region: "ap-south-1"
+    region: config.aws.region
 })
+console.log("s3 slient init")
 export default s3Client
