@@ -146,4 +146,55 @@ router.post("/task", userMiddleware, async (req, res) => {
 })
 
 
+router.get("/task", userMiddleware, async (req, res) => {
+    const taskId = req.query.taskId;
+    const userId= req.userId;
+
+    const taskDetails = await prismaClient.task.findFirst({
+        where: {
+            user_id: Number(userId),
+            id: Number(taskId)
+        },
+        include: {
+            options: true
+        }
+    })
+
+    if (!taskDetails) {
+        return res.status(411).json({
+            message: "You dont have access to this task"
+        })
+    }
+
+    // Todo: Can u make this faster?
+    const submissionDetails = await prismaClient.submission.findMany({
+        where: {
+            task_id: Number(taskId)
+        },
+        include: {
+            option: true
+        }
+    });
+
+    const result = {};
+
+    taskDetails.options.forEach(option => {
+        result[option.id] = {
+            count: 0,
+            option: {
+                imageUrl: option.image_url
+            }
+        }
+    })
+
+    submissionDetails.forEach(r => {
+        result[r.option_id].count++;
+    });
+
+    res.json({
+        result,
+        taskDetails
+    })
+
+})
 export default router
