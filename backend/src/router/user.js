@@ -9,7 +9,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import config from "../config/index.js";
 import { createTaskInput } from "../types.js";
 
-const router = express.Router();
+const router = express.Router()
 
 
 router.post("/signin", async (req, res) => {
@@ -122,7 +122,7 @@ router.post("/task", userMiddleware, async (req, res) => {
         const response = await tx.task.create({
             data: {
                 title: parseData.data.title,
-                amount: 0,
+                amount: parseData.data.amount * config.token.currencyPrecision,
                 signature: parseData.data.signature,
                 user_id: userId
             }
@@ -166,7 +166,6 @@ router.get("/task", userMiddleware, async (req, res) => {
         })
     }
 
-    // Todo: Can u make this faster?
     const submissionDetails = await prismaClient.submission.findMany({
         where: {
             task_id: Number(taskId)
