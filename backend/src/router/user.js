@@ -6,8 +6,10 @@ import prismaClient from "../databaseClient/prismaClient.js";
 import jwt from "jsonwebtoken"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import config from "../config/index.js";
+import { createTaskInput } from "../types.js";
 
-const router = express.Router();
+const router = express.Router()
 
 
 router.post("/signin", async (req, res) => {
@@ -37,7 +39,7 @@ router.post("/signin", async (req, res) => {
         console.log("user exists");
         const token = jwt.sign({
             userId: existingUser.id
-        }, process.env.JWT_SECRET)
+        }, config.jwt.secret)
 
         res.json({
             token
@@ -52,7 +54,7 @@ router.post("/signin", async (req, res) => {
 
         const token = jwt.sign({
             userId: user.id
-        }, process.env.JWT_SECRET)
+        }, config.jwt.secret)
 
         res.json({
             token
@@ -64,14 +66,11 @@ router.get("/presignedUrl", userMiddleware, async (req, res) => {
     const userId = req.userId;
 
     const { url, fields } = await createPresignedPost(s3Client, {
-        Bucket: process.env.AWS_BUCKET ?? "",
+        Bucket: config.aws.bucket ?? "",
         Key: `web3_annotate_s3/${userId}/${Math.random()}.jpg`,
         Conditions: [
             ['content-length-range', 0, 5 * 1024 * 1024] // 5 MB max
         ],
-        Fields : {
-            "Content-Type" : "image/png"
-        },
         Expires: 3600
     })
     console.log({url, fields});
@@ -88,7 +87,7 @@ router.get("/presignedUrlPut", userMiddleware, async (req, res) => {
 
 
     const command = new PutObjectCommand({
-        Bucket: process.env.AWS_BUCKET ?? "",
+        Bucket: config.aws.bucket ?? "",
         Key: `web3_annotate_s3/${userId}/${Math.random()}.jpg`
     })
 
@@ -104,4 +103,97 @@ router.get("/presignedUrlPut", userMiddleware, async (req, res) => {
 
 })
 
+router.post("/task", userMiddleware, async (req, res) => {
+
+    const userId = req.userId
+    // validate the inputs from the user;
+    const body = req.body;
+
+    const parseData = createTaskInput.safeParse(body);
+
+    if (!parseData.success) {
+        return res.status(411).json({
+            message: "You've sent the wrong inputs"
+        })
+    }
+
+    let response = await prismaClient.$transaction(async tx => {
+
+        const response = await tx.task.create({
+            data: {
+                title: parseData.data.title,
+                amount: parseData.data.amount * config.token.currencyPrecision,
+                signature: parseData.data.signature,
+                user_id: userId
+            }
+        });
+
+        await tx.option.createMany({
+            data: parseData.data.options.map(x => ({
+                image_url: x.imageUrl,
+                task_id: response.id
+            }))
+        })
+
+        return response;
+
+    })
+
+    res.json({
+        id: response.id
+    })
+
+})
+
+
+router.get("/task", userMiddleware, async (req, res) => {
+    const taskId = req.query.taskId;
+    const userId= req.userId;
+
+    const taskDetails = await prismaClient.task.findFirst({
+        where: {
+            user_id: Number(userId),
+            id: Number(taskId)
+        },
+        include: {
+            options: true
+        }
+    })
+
+    if (!taskDetails) {
+        return res.status(411).json({
+            message: "You dont have access to this task"
+        })
+    }
+
+    const submissionDetails = await prismaClient.submission.findMany({
+        where: {
+            task_id: Number(taskId)
+        },
+        include: {
+            option: true
+        }
+    });
+
+    const result = {};
+
+    taskDetails.options.forEach(option => {
+        result[option.id] = {
+            count: 0,
+            option: {
+                imageUrl: option.image_url
+            }
+        }
+    })
+
+    submissionDetails.forEach(r => {
+        result[r.option_id].count++;
+    });
+
+    res.json({
+        result,
+        taskDetails
+    })
+
+})
 export default router

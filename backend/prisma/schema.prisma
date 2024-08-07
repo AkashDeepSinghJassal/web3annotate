@@ -31,10 +31,10 @@ model Worker {
 
 model Task {
   id           Int       @id @default(autoincrement())
-  title        String?   @default("Select the most clickable thumbnail")
+  title        String?   
   options      Option[]
   user_id      Int
-  signature    String
+  signature    String   @unique
   amount       Int
   done         Boolean @default(false)
   user         User    @relation(fields: [user_id], references: [id])
