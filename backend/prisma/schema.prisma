@@ -34,7 +34,7 @@ model Task {
   title        String?   @default("Select the most clickable thumbnail")
   options      Option[]
   user_id      Int
-  signature    String
+  signature    String   @unique
   amount       Int
   done         Boolean @default(false)
   user         User    @relation(fields: [user_id], references: [id])

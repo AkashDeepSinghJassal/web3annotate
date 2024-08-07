@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import config from "../config/index.js";
+import { createTaskInput } from "../types.js";
 
 const router = express.Router();
 
@@ -101,5 +102,48 @@ router.get("/presignedUrlPut", userMiddleware, async (req, res) => {
     })
 
 })
+
+router.post("/task", userMiddleware, async (req, res) => {
+
+    const userId = req.userId
+    // validate the inputs from the user;
+    const body = req.body;
+
+    const parseData = createTaskInput.safeParse(body);
+
+    if (!parseData.success) {
+        return res.status(411).json({
+            message: "You've sent the wrong inputs"
+        })
+    }
+
+    let response = await prismaClient.$transaction(async tx => {
+
+        const response = await tx.task.create({
+            data: {
+                title: parseData.data.title,
+                amount: 0,
+                signature: parseData.data.signature,
+                user_id: userId
+            }
+        });
+
+        await tx.option.createMany({
+            data: parseData.data.options.map(x => ({
+                image_url: x.imageUrl,
+                task_id: response.id
+            }))
+        })
+
+        return response;
+
+    })
+
+    res.json({
+        id: response.id
+    })
+
+})
+
 
 export default router
