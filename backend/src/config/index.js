@@ -14,7 +14,7 @@ const config = {
         region : "ap-south-1"
     },
     token : {
-        currencyPrecision : 1000_1000
+        currencyPrecision : 1000_0000
     }
 };
 

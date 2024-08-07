@@ -1,9 +1,25 @@
 import config from "../config/index.js";
 import prismaClient from "../databaseClient/prismaClient.js";
 import { workerMiddleware } from "../middleware.js";
-
+import express from "express"
+import jwt from "jsonwebtoken"
 const router = express.Router()
 
+
+router.get("/balance", workerMiddleware, async (req, res) => {
+    const userId = req.userId;
+
+    const worker = await prismaClient.worker.findFirst({
+        where: {
+            id: Number(userId)
+        }
+    })
+
+    res.json({
+        pendingAmount: worker?.pending_amount,
+        lockedAmount: worker?.pending_amount,
+    })
+})
 
 
 router.get("/nextTask", workerMiddleware, async (req, res) => {
@@ -52,7 +68,7 @@ router.post("/signin", async(req, res) => {
 
         res.json({
             token,
-            amount: existingWorker.pending_amount / TOTAL_DECIMALS
+            amount: existingWorker.pending_amount / config.token.currencyPrecision
         })
     } else {
         const worker = await prismaClient.worker.create({

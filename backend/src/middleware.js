@@ -16,6 +16,7 @@ export function userMiddleware(req, res, next) {
             })    
         }
     } catch(e) {
+        console.error(e);
         return res.status(403).json({
             message: "You are not logged in"
         })
@@ -26,7 +27,7 @@ export function workerMiddleware(req, res, next) {
     const authHeader = req.headers["authorization"] ?? "";
 
     try {
-        const decoded = jwt.verify(authHeader, WORKER_JWT_SECRET);
+        const decoded = jwt.verify(authHeader, config.jwt.workerSecret);
         if (decoded.userId) {
             req.userId = decoded.userId;
             return next();
@@ -36,6 +37,7 @@ export function workerMiddleware(req, res, next) {
             })    
         }
     } catch(e) {
+        console.error(e);
         return res.status(403).json({
             message: "You are not logged in"
         })
