@@ -169,6 +169,61 @@ router.post("/submission", workerMiddleware, async (req, res) => {
 })
 
 
+router.post("/payout", workerMiddleware, async (req, res) => {
+    try {
+
+        const workerId = req.userId;
+        const worker = await prismaClient.worker.findFirst({
+            where: { id: Number(workerId) }
+        })
+        console.log(`worker ${worker.id} initiate payout of ${worker.pending_amount}`);
+        if (!worker) {
+            return res.status(403).json({
+                message: "User worker not found"
+            })
+        }
+        // using a temp transaction id 
+        const tnx_id = "0x1234abef"
+        await prismaClient.$transaction(async tx => {
+            await tx.worker.update({
+                where: {
+                    id: Number(workerId)
+                },
+                data: {
+                    pending_amount: {
+                        decrement: worker.pending_amount
+                    },
+                    locked_amount: {
+                        increment: worker.pending_amount
+                    }
+                }
+            })
+
+            await tx.payouts.create({
+                data: {
+                    worker_id: Number(workerId),
+                    amount: worker.pending_amount,
+                    status: "Processing",
+                    signature: tnx_id
+                }
+            })
+        })
+
+        res.json({
+            message: "Processing payout",
+            amount: worker.pending_amount
+        })
+    } catch (err) {
+        console.error(`Exception in payout ${err.message}`)
+        console.error(err)
+        res.status(500).json({
+            message: err.message
+        })
+    }
+
+})
+
+
 /**
  * Get next task which hadn't been submitted by worker and is not already done
  * @param {} userId id of user
