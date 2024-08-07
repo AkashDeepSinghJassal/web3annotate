@@ -5,6 +5,7 @@ const createTaskInput = z.object({
         imageUrl: z.string(),
     })).min(2),
     title: z.string(),
+    amount: z.number(),
     signature: z.string()
 });
 

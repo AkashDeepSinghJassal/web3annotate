@@ -31,7 +31,7 @@ model Worker {
 
 model Task {
   id           Int       @id @default(autoincrement())
-  title        String?   @default("Select the most clickable thumbnail")
+  title        String?   
   options      Option[]
   user_id      Int
   signature    String   @unique
