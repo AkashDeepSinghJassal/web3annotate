@@ -9,7 +9,7 @@ const port = 3000
 app.use(cors())
 app.use(express.json());
 
-app.get('/', (req, res) => res.send('Welcome to Web3 Annotate'))
+app.get('/', (req, res) => res.send('Welcome to Web3 Survery'))
 app.use('/user', userRouter)
 app.use('/worker', workerRouter)
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))
