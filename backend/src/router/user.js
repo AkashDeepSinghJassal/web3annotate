@@ -63,21 +63,29 @@ router.post("/signin", async (req, res) => {
 });
 router.get("/presignedUrl", userMiddleware, async (req, res) => {
 
-    const userId = req.userId;
+    try {
+        const userId = req.userId;
 
-    const { url, fields } = await createPresignedPost(s3Client, {
-        Bucket: config.aws.bucket ?? "",
-        Key: `web3_annotate_s3/${userId}/${Math.random()}.jpg`,
-        Conditions: [
-            ['content-length-range', 0, 5 * 1024 * 1024] // 5 MB max
-        ],
-        Expires: 3600
-    })
-    console.log({url, fields});
-    res.json({
-        preSignedUrl: url,
-        fields
-    })
+        const { url, fields } = await createPresignedPost(s3Client, {
+            Bucket: config.aws.bucket ?? "",
+            Key: `web3_annotate_s3/${userId}/${Math.random()}.jpg`,
+            Conditions: [
+                ['content-length-range', 0, 5 * 1024 * 1024] // 5 MB max
+            ],
+            Expires: 3600
+        })
+        console.log({ url, fields });
+        res.json({
+            preSignedUrl: url,
+            fields
+        })
+    } catch (err) {
+        console.error(`Exception in presignedUrl ${err.message}`)
+        console.error(err)
+        res.status(500).json({
+            message: err.message
+        })
+    }
 
 })
 
@@ -105,50 +113,60 @@ router.get("/presignedUrlPut", userMiddleware, async (req, res) => {
 
 router.post("/task", userMiddleware, async (req, res) => {
 
-    const userId = req.userId
-    // validate the inputs from the user;
-    const body = req.body;
+    try {
 
-    const parseData = createTaskInput.safeParse(body);
 
-    if (!parseData.success) {
-        return res.status(411).json({
-            message: "You've sent the wrong inputs"
+        const userId = req.userId
+        // validate the inputs from the user;
+        const body = req.body;
+
+        const parseData = createTaskInput.safeParse(body);
+
+        if (!parseData.success) {
+            return res.status(411).json({
+                message: "You've sent the wrong inputs"
+            })
+        }
+
+        let response = await prismaClient.$transaction(async tx => {
+
+            const response = await tx.task.create({
+                data: {
+                    title: parseData.data.title,
+                    amount: parseData.data.amount * config.token.currencyPrecision,
+                    signature: parseData.data.signature,
+                    user_id: userId
+                }
+            });
+
+            await tx.option.createMany({
+                data: parseData.data.options.map(x => ({
+                    image_url: x.imageUrl,
+                    task_id: response.id
+                }))
+            })
+
+            return response;
+
+        })
+
+        res.json({
+            id: response.id
+        })
+    } catch (err) {
+        console.error(`Exception in creating task ${err.message}`)
+        console.error(err)
+        res.status(500).json({
+            message: err.message
         })
     }
-
-    let response = await prismaClient.$transaction(async tx => {
-
-        const response = await tx.task.create({
-            data: {
-                title: parseData.data.title,
-                amount: parseData.data.amount * config.token.currencyPrecision,
-                signature: parseData.data.signature,
-                user_id: userId
-            }
-        });
-
-        await tx.option.createMany({
-            data: parseData.data.options.map(x => ({
-                image_url: x.imageUrl,
-                task_id: response.id
-            }))
-        })
-
-        return response;
-
-    })
-
-    res.json({
-        id: response.id
-    })
 
 })
 
 
 router.get("/task", userMiddleware, async (req, res) => {
     const taskId = req.query.taskId;
-    const userId= req.userId;
+    const userId = req.userId;
 
     const taskDetails = await prismaClient.task.findFirst({
         where: {
