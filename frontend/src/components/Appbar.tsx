@@ -35,5 +35,8 @@ export const Appbar = () => {
         <div className="text-2xl pl-4 flex justify-center pt-3">
             Web3Survey
         </div>
+        <div className="text-xl pr-4 pb-2">
+            Connect wallet
+        </div>
     </div>
 }
